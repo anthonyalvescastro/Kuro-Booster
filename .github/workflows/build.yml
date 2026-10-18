@@ -1,0 +1,53 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract zip
+        run: |
+          ZIP_PATH="projetao.zip"
+          echo "Extraindo $ZIP_PATH"
+          mkdir -p src
+          unzip -q "$ZIP_PATH" -d src
+          # Se o zip veio com uma pasta raiz (kuro-performance/, app/, etc), promove
+          if [ -d "src/kuro-performance" ]; then
+            mv src/kuro-performance/* src/
+            mv src/kuro-performance/.[!.]* src/ 2>/dev/null || true
+            rmdir src/kuro-performance
+          fi
+          # Se a pasta raiz tiver outro nome, ajusta aqui manualmente:
+          # if [ -d "src/OUTRO_NOME" ]; then mv src/OUTRO_NOME/* src/; rmdir src/OUTRO_NOME; fi
+          echo "--- conteudo da raiz apos extracao ---"
+          ls -la src/
+          echo "--- procurando settings.gradle.kts ---"
+          find src -maxdepth 2 -name "settings.gradle.kts" -o -name "build.gradle.kts"
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
+      - name: Build debug APK
+        working-directory: src
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: KuroPerformance-debug
+          path: src/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
